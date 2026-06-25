@@ -2004,6 +2004,90 @@
     updateCartUI();
   </script>
 </body>
+<!-- ================= FIREBASE CLOUD SYNC ================= -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, initializeFirestore, persistentLocalCache } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
+    const firebaseConfig = {
+      apiKey: "AIzaSyA1FtGZcnQEk9MYAWEYMBkYQs9v0waBia4",
+      authDomain: "altions-5f6b8.firebaseapp.com",
+      projectId: "altions-5f6b8",
+      storageBucket: "altions-5f6b8.firebasestorage.app",
+      messagingSenderId: "788148409169",
+      appId: "1:788148409169:web:d5af8252f22b63c45bf970"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    
+    // Offline-safe database initialization
+    const db = initializeFirestore(app, {
+      localCache: persistentLocalCache()
+    });
+
+    // Run this in the background so it NEVER blocks the page load
+    setTimeout(async () => {
+      try {
+        const collections = ["products", "settings", "orders", "reviews"];
+        for (const col of collections) {
+          const snap = await getDoc(doc(db, "altinos", col));
+          if (!snap.exists()) {
+            const localData = DataStore['get' + col.charAt(0).toUpperCase() + col.slice(1)]();
+            await setDoc(doc(db, "altinos", col), { data: localData });
+          }
+        }
+      } catch (e) {
+        console.log("Firebase connection bypassed due to network restrictions.");
+      }
+    }, 1000);
+
+    // Intercept saves
+    const originalSaveProducts = DataStore.saveProducts;
+    DataStore.saveProducts = function(p) { originalSaveProducts(p); setDoc(doc(db, "altinos", "products"), { data: p }).catch(e => console.log("Saved locally only")); };
+
+    const originalSaveSettings = DataStore.saveSettings;
+    DataStore.saveSettings = function(s) { originalSaveSettings(s); setDoc(doc(db, "altinos", "settings"), { data: s }).catch(e => console.log("Saved locally only")); };
+
+    const originalSaveOrders = DataStore.saveOrders;
+    DataStore.saveOrders = function(o) { originalSaveOrders(o); setDoc(doc(db, "altinos", "orders"), { data: o }).catch(e => console.log("Saved locally only")); };
+
+    const originalSaveReviews = DataStore.saveReviews;
+    DataStore.saveReviews = function(r) { originalSaveReviews(r); setDoc(doc(db, "altinos", "reviews"), { data: r }).catch(e => console.log("Saved locally only")); };
+
+    // Real-time listeners (wrapped to prevent page crashes if blocked)
+    onSnapshot(doc(db, "altinos", "products"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().data) {
+        localStorage.setItem('altinos_products', JSON.stringify(docSnap.data().data));
+        if (typeof renderPublicProducts === 'function') renderPublicProducts();
+        if (window.location.hash === '#admin' && typeof renderAdminProducts === 'function') renderAdminProducts();
+      }
+    }, e => console.log("Sync paused"));
+
+    onSnapshot(doc(db, "altinos", "settings"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().data) {
+        localStorage.setItem('altinos_settings', JSON.stringify(docSnap.data().data));
+        if (typeof renderPublicSite === 'function') renderPublicSite();
+        if (window.location.hash === '#admin' && typeof loadAdminSettings === 'function') loadAdminSettings();
+      }
+    }, e => console.log("Sync paused"));
+
+    onSnapshot(doc(db, "altinos", "orders"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().data) {
+        localStorage.setItem('altinos_orders', JSON.stringify(docSnap.data().data));
+        if (window.location.hash === '#admin') {
+          if (typeof renderAdminOrders === 'function') renderAdminOrders();
+          if (typeof renderDashboard === 'function') renderDashboard();
+        }
+      }
+    }, e => console.log("Sync paused"));
+
+    onSnapshot(doc(db, "altinos", "reviews"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().data) {
+        localStorage.setItem('altinos_reviews', JSON.stringify(docSnap.data().data));
+        if (typeof renderReviewsPublic === 'function') renderReviewsPublic();
+        if (window.location.hash === '#admin' && typeof renderAdminReviews === 'function') renderAdminReviews();
+      }
+    }, e => console.log("Sync paused"));
+  </script>
   </script>
 </html>
